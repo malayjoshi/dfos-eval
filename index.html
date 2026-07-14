@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Production-Ready SaaS Architecture Explorer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header>
+        <div class="logo-section">
+            <h1>SaaS Architecture Explorer <span>Production-Ready v1.0</span></h1>
+        </div>
+        <div class="system-status">
+            <div class="status-indicator">
+                <div class="status-dot"></div>
+                <span id="health-status">System Operational</span>
+            </div>
+        </div>
+    </header>
+
+    <div class="app-container">
+        <!-- Left Pane: Interactive SVG & Simulation -->
+        <div class="visualizer-pane">
+            <div class="visualizer-card">
+                <div class="visualizer-header">
+                    <div class="visualizer-title">Interactive Architectural Diagram</div>
+                    <div class="visualizer-legend">
+                        <div class="legend-item">
+                            <span class="legend-color" style="background: var(--primary);"></span> Networking
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color" style="background: var(--accent-purple);"></span> Data/Secrets
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color" style="background: var(--success);"></span> Compute/K8s
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Interactive SVG -->
+                <svg class="diagram-svg" viewBox="0 0 800 420" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <!-- Grid pattern -->
+                        <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                            <path d="M 20 0 L 0 0 0 20" fill="none" stroke="rgba(255, 255, 255, 0.02)" stroke-width="1"/>
+                        </pattern>
+                        <!-- Arrow Marker -->
+                        <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                            <path d="M 0 2 L 8 5 L 0 8 z" fill="rgba(255, 255, 255, 0.3)"/>
+                        </marker>
+                        <marker id="arrow-active" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                            <path d="M 0 2 L 8 5 L 0 8 z" fill="#00f2fe"/>
+                        </marker>
+                    </defs>
+
+                    <!-- Background Grid -->
+                    <rect width="100%" height="100%" fill="url(#grid)" />
+
+                    <!-- Connection Lines -->
+                    <path id="conn-dns-lb" class="svg-connection" d="M 120 70 L 220 70" marker-end="url(#arrow)"/>
+                    <path id="conn-lb-ingress" class="svg-connection" d="M 320 70 L 420 70" marker-end="url(#arrow)"/>
+                    
+                    <path id="conn-ingress-app1" class="svg-connection" d="M 520 70 L 580 40" marker-end="url(#arrow)"/>
+                    <path id="conn-ingress-app2" class="svg-connection" d="M 520 70 L 580 90" marker-end="url(#arrow)"/>
+                    <path id="conn-ingress-app3" class="svg-connection" d="M 520 70 L 580 140" marker-end="url(#arrow)"/>
+                    
+                    <path id="conn-app-vault" class="svg-connection" d="M 680 90 L 730 90" marker-end="url(#arrow)"/>
+                    
+                    <path id="conn-app-redis" class="svg-connection" d="M 680 90 L 610 240" marker-end="url(#arrow)"/>
+                    <path id="conn-app-rds" class="svg-connection" d="M 680 90 L 730 240" marker-end="url(#arrow)"/>
+                    
+                    <path id="conn-rds-replica" class="svg-connection" d="M 730 270 L 730 330" marker-end="url(#arrow)"/>
+
+                    <path id="conn-k8s-monitoring" class="svg-connection" d="M 470 100 L 470 240" marker-end="url(#arrow)"/>
+                    <path id="conn-monitoring-logging" class="svg-connection" d="M 470 270 L 470 330" marker-end="url(#arrow)"/>
+
+                    <path id="conn-git-ci" class="svg-connection" d="M 120 270 L 220 270" marker-end="url(#arrow)"/>
+                    <path id="conn-ci-cd" class="svg-connection" d="M 320 270 L 320 180" marker-end="url(#arrow)"/>
+                    <path id="conn-cd-k8s" class="svg-connection" d="M 350 150 L 470 90" marker-end="url(#arrow)"/>
+
+                    <!-- INTERACTIVE NODES -->
+
+                    <!-- 1. DNS & WAF -->
+                    <g id="node-dns" class="svg-node active" transform="translate(20, 40)">
+                        <rect width="100" height="60" rx="8" fill="rgba(0, 242, 254, 0.05)" stroke="var(--primary)" stroke-width="1.5"/>
+                        <text x="50" y="28" fill="#fff" font-size="11" text-anchor="middle" font-weight="500">Cloudflare DNS</text>
+                        <text x="50" y="44" fill="var(--text-muted)" font-size="9" text-anchor="middle">WAF & CDN</text>
+                    </g>
+
+                    <!-- 2. Load Balancer -->
+                    <g id="node-lb" class="svg-node" transform="translate(220, 40)">
+                        <rect width="100" height="60" rx="8" fill="rgba(0, 242, 254, 0.05)" stroke="rgba(255, 255, 255, 0.1)" stroke-width="1.5"/>
+                        <text x="50" y="28" fill="#fff" font-size="11" text-anchor="middle" font-weight="500">AWS ALB/NLB</text>
+                        <text x="50" y="44" fill="var(--text-muted)" font-size="9" text-anchor="middle">L4/L7 Balancing</text>
+                    </g>
+
+                    <!-- 3. K8s Ingress -->
+                    <g id="node-ingress" class="svg-node" transform="translate(420, 40)">
+                        <rect width="100" height="60" rx="8" fill="rgba(0, 255, 135, 0.05)" stroke="rgba(255, 255, 255, 0.1)" stroke-width="1.5"/>
+                        <text x="50" y="28" fill="#fff" font-size="11" text-anchor="middle" font-weight="500">Nginx Ingress</text>
+                        <text x="50" y="44" fill="var(--text-muted)" font-size="9" text-anchor="middle">K8s Controller</text>
+                    </g>
+
+                    <!-- 4. K8s Pods / Apps (Compute Zone) -->
+                    <g id="node-pods" class="svg-node" transform="translate(580, 20)">
+                        <rect width="100" height="135" rx="8" fill="rgba(0, 255, 135, 0.05)" stroke="rgba(255, 255, 255, 0.1)" stroke-width="1.5"/>
+                        <text x="50" y="22" fill="#fff" font-size="11" text-anchor="middle" font-weight="600">SaaS Services</text>
+                        <!-- Pod 1 -->
+                        <rect x="10" y="35" width="80" height="24" rx="4" fill="rgba(0, 255, 135, 0.1)" stroke="rgba(0, 255, 135, 0.3)" stroke-width="1"/>
+                        <text x="50" y="50" fill="var(--success)" font-size="9" text-anchor="middle">api-pod-1</text>
+                        <!-- Pod 2 -->
+                        <rect x="10" y="65" width="80" height="24" rx="4" fill="rgba(0, 255, 135, 0.1)" stroke="rgba(0, 255, 135, 0.3)" stroke-width="1"/>
+                        <text x="50" y="80" fill="var(--success)" font-size="9" text-anchor="middle">api-pod-2</text>
+                        <!-- Pod 3 -->
+                        <rect x="10" y="95" width="80" height="24" rx="4" fill="rgba(0, 255, 135, 0.1)" stroke="rgba(0, 255, 135, 0.3)" stroke-width="1"/>
+                        <text x="50" y="110" fill="var(--success)" font-size="9" text-anchor="middle">auth-pod-1</text>
+                    </g>
+
+                    <!-- 5. Secrets Management (Vault / AWS SM) -->
+                    <g id="node-secrets" class="svg-node" transform="translate(710, 60)">
+                        <rect width="80" height="60" rx="8" fill="rgba(177, 99, 255, 0.05)" stroke="rgba(255, 255, 255, 0.1)" stroke-width="1.5"/>
+                        <text x="40" y="28" fill="#fff" font-size="11" text-anchor="middle" font-weight="500">Vault / SM</text>
+                        <text x="40" y="44" fill="var(--text-muted)" font-size="9" text-anchor="middle">Secrets Engine</text>
+                    </g>
+
+                    <!-- 6. Database (Primary) -->
+                    <g id="node-db" class="svg-node" transform="translate(680, 210)">
+                        <rect width="100" height="60" rx="8" fill="rgba(177, 99, 255, 0.05)" stroke="rgba(255, 255, 255, 0.1)" stroke-width="1.5"/>
+                        <text x="50" y="28" fill="#fff" font-size="11" text-anchor="middle" font-weight="500">RDS Primary</text>
+                        <text x="50" y="44" fill="var(--text-muted)" font-size="9" text-anchor="middle">Postgres (Read/Write)</text>
+                    </g>
+
+                    <!-- 7. Database (Read Replica) -->
+                    <g id="node-dbreplica" class="svg-node" transform="translate(680, 330)">
+                        <rect width="100" height="60" rx="8" fill="rgba(177, 99, 255, 0.05)" stroke="rgba(255, 255, 255, 0.1)" stroke-width="1.5"/>
+                        <text x="50" y="28" fill="#fff" font-size="11" text-anchor="middle" font-weight="500">RDS Replica</text>
+                        <text x="50" y="44" fill="var(--text-muted)" font-size="9" text-anchor="middle">Postgres (Read Only)</text>
+                    </g>
+
+                    <!-- 8. Cache (Redis) -->
+                    <g id="node-cache" class="svg-node" transform="translate(560, 210)">
+                        <rect width="90" height="60" rx="8" fill="rgba(177, 99, 255, 0.05)" stroke="rgba(255, 255, 255, 0.1)" stroke-width="1.5"/>
+                        <text x="45" y="28" fill="#fff" font-size="11" text-anchor="middle" font-weight="500">Redis Cluster</text>
+                        <text x="45" y="44" fill="var(--text-muted)" font-size="9" text-anchor="middle">Sessions & Cache</text>
+                    </g>
+
+                    <!-- 9. Monitoring -->
+                    <g id="node-monitoring" class="svg-node" transform="translate(420, 210)">
+                        <rect width="100" height="60" rx="8" fill="rgba(0, 242, 254, 0.05)" stroke="rgba(255, 255, 255, 0.1)" stroke-width="1.5"/>
+                        <text x="50" y="28" fill="#fff" font-size="11" text-anchor="middle" font-weight="500">Prometheus</text>
+                        <text x="50" y="44" fill="var(--text-muted)" font-size="9" text-anchor="middle">Grafana Dashboard</text>
+                    </g>
+
+                    <!-- 10. Logging -->
+                    <g id="node-logging" class="svg-node" transform="translate(420, 330)">
+                        <rect width="100" height="60" rx="8" fill="rgba(0, 242, 254, 0.05)" stroke="rgba(255, 255, 255, 0.1)" stroke-width="1.5"/>
+                        <text x="50" y="28" fill="#fff" font-size="11" text-anchor="middle" font-weight="500">Loki + Promtail</text>
+                        <text x="50" y="44" fill="var(--text-muted)" font-size="9" text-anchor="middle">Log Aggregator</text>
+                    </g>
+
+                    <!-- 11. Git Source -->
+                    <g id="node-git" class="svg-node" transform="translate(20, 240)">
+                        <rect width="100" height="60" rx="8" fill="rgba(0, 242, 254, 0.05)" stroke="rgba(255, 255, 255, 0.1)" stroke-width="1.5"/>
+                        <text x="50" y="28" fill="#fff" font-size="11" text-anchor="middle" font-weight="500">GitHub Repo</text>
+                        <text x="50" y="44" fill="var(--text-muted)" font-size="9" text-anchor="middle">Code & GitOps</text>
+                    </g>
+
+                    <!-- 12. CI/CD (GitHub Actions) -->
+                    <g id="node-cicd" class="svg-node" transform="translate(220, 240)">
+                        <rect width="100" height="60" rx="8" fill="rgba(0, 242, 254, 0.05)" stroke="rgba(255, 255, 255, 0.1)" stroke-width="1.5"/>
+                        <text x="50" y="28" fill="#fff" font-size="11" text-anchor="middle" font-weight="500">GitHub Actions</text>
+                        <text x="50" y="44" fill="var(--text-muted)" font-size="9" text-anchor="middle">CI Pipeline</text>
+                    </g>
+
+                    <!-- 13. GitOps Agent (ArgoCD) -->
+                    <g id="node-gitops" class="svg-node" transform="translate(220, 120)">
+                        <rect width="100" height="60" rx="8" fill="rgba(0, 255, 135, 0.05)" stroke="rgba(255, 255, 255, 0.1)" stroke-width="1.5"/>
+                        <text x="50" y="28" fill="#fff" font-size="11" text-anchor="middle" font-weight="500">ArgoCD</text>
+                        <text x="50" y="44" fill="var(--text-muted)" font-size="9" text-anchor="middle">GitOps Engine</text>
+                    </g>
+
+                </svg>
+            </div>
+
+            <!-- Interactive Simulator Dashboard -->
+            <div class="simulator-card">
+                <div class="visualizer-title" style="margin-bottom: 0.5rem;">SaaS Operations & DR Simulator</div>
+                <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">
+                    Trigger infrastructure events to simulate real-world High Availability (HA), disaster recovery, scaling, and deployment scenarios.
+                </p>
+                <div class="simulator-controls">
+                    <button class="sim-btn danger-btn" id="sim-pod-failure">
+                        💥 Pod Crash
+                    </button>
+                    <button class="sim-btn danger-btn" id="sim-db-failover">
+                        ⚡ DB Failover
+                    </button>
+                    <button class="sim-btn success-btn" id="sim-traffic-spike">
+                        📈 Traffic Spike
+                    </button>
+                    <button class="sim-btn purple-btn" id="sim-deploy">
+                        🚀 GitOps Deploy
+                    </button>
+                    
+                    <!-- Console Log output -->
+                    <div class="console-logs" id="console-logs">
+                        <div class="log-entry">
+                            <span class="log-time">[00:00:01]</span>
+                            <span class="log-text info">Simulator initialized. Click nodes or triggers above to start.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Pane: Details & Configuration Blueprints -->
+        <div class="details-pane">
+            <!-- Dynamic Details Card -->
+            <div class="details-card" id="details-card">
+                <span class="badge" id="details-badge">Routing & Edge</span>
+                <h2 id="details-title">Cloudflare DNS & WAF</h2>
+                <p id="details-description">
+                    All user traffic passes through Cloudflare before reaching the hosting environment. Cloudflare routes requests globally via Anycast DNS, checks incoming headers against the Web Application Firewall (WAF) to prevent SQL Injection, Cross-Site Scripting (XSS), and Layer 7 DDoS attacks, and serves cached static assets directly at edge servers.
+                </p>
+                
+                <div class="details-grid" id="details-grid">
+                    <div class="details-item">
+                        <div class="details-item-title">Technology</div>
+                        <div class="details-item-value" id="tech-val">Cloudflare WAF / DNS</div>
+                    </div>
+                    <div class="details-item">
+                        <div class="details-item-title">Design Pattern</div>
+                        <div class="details-item-value" id="pattern-val">Edge Proxy & Anycast Routing</div>
+                    </div>
+                    <div class="details-item">
+                        <div class="details-item-title">HA Capability</div>
+                        <div class="details-item-value" id="ha-val">Multi-Region Edge Failover</div>
+                    </div>
+                    <div class="details-item">
+                        <div class="details-item-title">DR Action</div>
+                        <div class="details-item-value" id="dr-val">Failover DNS record update</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Configuration Blueprint Card -->
+            <div class="config-card">
+                <div class="config-header">
+                    <div class="visualizer-title">Reference Configurations</div>
+                    <div class="config-tabs" id="config-tabs">
+                        <!-- Dynamic Tabs -->
+                        <button class="config-tab active" data-config="nginx.conf">nginx.conf</button>
+                        <button class="config-tab" data-config="k8s-ingress.yaml">ingress.yaml</button>
+                        <button class="config-tab" data-config="terraform-db.tf">db.tf</button>
+                    </div>
+                    <button class="copy-btn" id="copy-btn">
+                        📋 Copy Code
+                    </button>
+                </div>
+                <div class="code-container">
+                    <pre><code id="code-block" class="language-yaml"># Loading configuration...</code></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast">
+        <span class="toast-icon">ℹ️</span>
+        <span class="toast-message" id="toast-message">Message here</span>
+    </div>
+
+    <!-- JavaScript logic -->
+    <script src="app.js"></script>
+</body>
+</html>
