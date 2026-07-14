@@ -1,0 +1,114 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: saas-alert-rules
+  namespace: monitoring
+  labels:
+    role: alert-rules
+    prometheus: k8s-prometheus
+spec:
+  groups:
+    - name: KubernetesInfrastructureAlerts
+      rules:
+        # Node status check
+        - alert: HostNodeDown
+          expr: up{job="kubernetes-nodes"} == 0
+          for: 5m
+          labels:
+            severity: critical
+            tier: infrastructure
+          annotations:
+            summary: "Kubernetes node down"
+            description: "Node {{ $labels.instance }} has been unreachable for more than 5 minutes."
+
+        # High CPU utilisation alert
+        - alert: HostCpuHighUsage
+          expr: (100 - (rate(node_cpu_seconds_total{mode="idle"}[5m]) * 100)) > 85
+          for: 10m
+          labels:
+            severity: warning
+            tier: infrastructure
+          annotations:
+            summary: "High CPU usage on {{ $labels.instance }}"
+            description: "CPU usage on node {{ $labels.instance }} is currently {{ $value | printf \"%.2f\" }}%."
+
+        # High Memory usage alert
+        - alert: HostMemoryLowFreeSpace
+          expr: (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 < 10
+          for: 5m
+          labels:
+            severity: critical
+            tier: infrastructure
+          annotations:
+            summary: "Low memory available on host {{ $labels.instance }}"
+            description: "Free memory on node {{ $labels.instance }} is less than 10% (current: {{ $value | printf \"%.2f\" }}%)."
+
+        # Out of disk space warning
+        - alert: OutOfDiskSpace
+          expr: (node_filesystem_free_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 < 15
+          for: 10m
+          labels:
+            severity: warning
+            tier: infrastructure
+          annotations:
+            summary: "Low disk space on {{ $labels.instance }}"
+            description: "Disk partition '/' free space is under 15% (current: {{ $value | printf \"%.2f\" }}%)."
+
+    - name: DatabaseAlerts
+      rules:
+        # High CPU usage on database
+        - alert: DatabaseCpuUtilizationHigh
+          expr: aws_rds_cpuutilization_average > 85
+          for: 5m
+          labels:
+            severity: critical
+            tier: database
+          annotations:
+            summary: "RDS Database Instance CPU high"
+            description: "RDS database {{ $labels.dbinstance_identifier }} CPU utilization is {{ $value }}%."
+
+        # Database connections limit warning
+        - alert: DatabaseConnectionsLimitWarning
+          expr: aws_rds_database_connections_average > 800
+          for: 5m
+          labels:
+            severity: warning
+            tier: database
+          annotations:
+            summary: "RDS Database high connection count"
+            description: "RDS database {{ $labels.dbinstance_identifier }} connections count is currently {{ $value }} (Limit: 1000)."
+
+        # Replica Lag critical alert
+        - alert: DatabaseReplicaLagHigh
+          expr: aws_rds_replica_lag_average > 60
+          for: 2m
+          labels:
+            severity: critical
+            tier: database
+          annotations:
+            summary: "RDS Database Read Replica Lag High"
+            description: "Replica lag for {{ $labels.dbinstance_identifier }} exceeds 60 seconds (current: {{ $value }}s)."
+
+    - name: ApplicationPerformanceAlerts
+      rules:
+        # High HTTP 5xx rate
+        - alert: HighHttp5xxErrorRate
+          expr: sum(rate(nginx_ingress_controller_requests{status=~"5.*"}[5m])) / sum(rate(nginx_ingress_controller_requests[5m])) * 100 > 2
+          for: 3m
+          labels:
+            severity: critical
+            tier: application
+          annotations:
+            summary: "High HTTP 5XX Error Rate in Ingress"
+            description: "Ingress 5XX errors are over 2% of total traffic (current: {{ $value | printf \"%.2f\" }}%) in the last 3 minutes."
+
+        # High response latency
+        - alert: IngressHighLatency
+          expr: histogram_quantile(0.95, sum(rate(nginx_ingress_controller_request_duration_seconds_bucket[5m])) by (le)) > 1.5
+          for: 5m
+          labels:
+            severity: warning
+            tier: application
+          annotations:
+            summary: "95th percentile response latency exceeded 1.5s"
+            description: "Ingress API response duration for 95% of traffic is {{ $value }} seconds."

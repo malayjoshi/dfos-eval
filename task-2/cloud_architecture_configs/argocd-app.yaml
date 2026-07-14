@@ -1,0 +1,32 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: saas-production-application
+  namespace: argocd
+  finalizers:
+    # Ensures resources are deleted from cluster if the ArgoCD app is deleted
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    # URL to the repository containing the Kubernetes manifests / Kustomize / Helm Charts
+    repoURL: 'https://github.com/myorg/saas-gitops-manifests.git'
+    targetRevision: HEAD
+    path: environments/production
+  destination:
+    # Local target cluster and namespace for deployment
+    server: 'https://kubernetes.default.svc'
+    namespace: prod-apps
+  syncPolicy:
+    automated:
+      prune: true     # Automatically delete resources in K8s that are deleted from Git
+      selfHeal: true  # Automatically overwrite changes made manually in K8s (drift prevention)
+    syncOptions:
+      - CreateNamespace=true # Create target namespace if it does not exist
+      - ApplyOutOfSyncOnly=true # Optimize sync speed by only syncing changed resources
+    retry:
+      limit: 5 # Retry 5 times on failed sync
+      backoff:
+        duration: 5s # Wait 5s before retrying
+        factor: 2    # Exponential backoff multiplier (5s, 10s, 20s, 40s...)
+        maxDuration: 3m

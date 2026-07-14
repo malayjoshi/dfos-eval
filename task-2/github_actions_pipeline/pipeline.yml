@@ -1,0 +1,179 @@
+# Production CI/CD Pipeline with Automated Health Check and Rollback
+name: SaaS CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: 123456789012.dkr.ecr.us-east-1.amazonaws.com
+  IMAGE_NAME: saas-api-service
+  KUBE_NAMESPACE: prod-apps
+  KUBE_DEPLOYMENT_NAME: saas-api-service
+  APP_HEALTH_URL: https://api.saasapp.com/healthz
+
+jobs:
+  # 1. Build and Test Phase
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.20'
+          cache: true
+
+      - name: Run Unit Tests
+        run: |
+          go test -v -race -coverprofile=coverage.out ./...
+
+  # 2. Container Build and Push Phase
+  build-and-push-docker:
+    name: Docker Build & Push
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.set-tag.outputs.tag }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set Image Tag Output
+        id: set-tag
+        run: |
+          TAG="${{ github.sha }}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "IMAGE_TAG=$TAG" >> $GITHUB_ENV
+
+      - name: Configure AWS Credentials (OIDC - Safe Passwordless Auth)
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::123456789012:role/github-actions-ecr-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build and Tag Docker Image
+        run: |
+          docker build \
+            --build-arg RELEASE_VERSION=${{ env.IMAGE_TAG }} \
+            -t ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} \
+            -t ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:latest .
+
+      - name: Push Container to ECR Registry
+        run: |
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+  # 3. Deployment Phase (Kubernetes Rollout)
+  deploy-to-kubernetes:
+    name: Kubernetes Deployment
+    needs: build-and-push-docker
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::123456789012:role/github-actions-eks-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update Kubeconfig (EKS connection setup)
+        run: |
+          aws eks update-kubeconfig --name saas-production-cluster --region ${{ env.AWS_REGION }}
+
+      - name: Deploy New Container Version
+        run: |
+          kubectl set image deployment/${{ env.KUBE_DEPLOYMENT_NAME }} \
+            ${{ env.IMAGE_NAME }}=${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-and-push-docker.outputs.image_tag }} \
+            -n ${{ env.KUBE_NAMESPACE }}
+
+      - name: Monitor Kubernetes Rollout Status
+        id: rollout-status
+        run: |
+          # Wait for rolling update to complete. Timeout in 120s if pods fail to get Ready.
+          kubectl rollout status deployment/${{ env.KUBE_DEPLOYMENT_NAME }} -n ${{ env.KUBE_NAMESPACE }} --timeout=120s
+
+  # 4. Automated Post-Deployment Health Check
+  post-deploy-health-check:
+    name: Automated Health Check
+    needs: [build-and-push-docker, deploy-to-kubernetes]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe Application Health Check Endpoint
+        run: |
+          echo "Initiating active endpoint health probing..."
+          ATTEMPTS=0
+          MAX_ATTEMPTS=10
+          SLEEP_SECONDS=10
+          SUCCESS=false
+
+          while [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
+            ATTEMPTS=$((ATTEMPTS+1))
+            echo "Attempt $ATTEMPTS/$MAX_ATTEMPTS: Curling ${{ env.APP_HEALTH_URL }}"
+            
+            # Curl the endpoint (allow-insecure if testing self-signed certs)
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 ${{ env.APP_HEALTH_URL }} || echo "000")
+            
+            if [ "$HTTP_STATUS" = "200" ]; then
+              echo "✅ Health check PASSED with status code 200!"
+              SUCCESS=true
+              break
+            else
+              echo "⚠️ Health check FAILED with status code: $HTTP_STATUS. Retrying in $SLEEP_SECONDS seconds..."
+              sleep $SLEEP_SECONDS
+            fi
+          done
+
+          if [ "$SUCCESS" = "false" ]; then
+            echo "❌ CRITICAL: Application health check failed after $MAX_ATTEMPTS attempts."
+            exit 1 # Fail job to trigger downstream rollback
+          fi
+
+  # 5. Automated Rollback (Executes ONLY if Health Check Fails)
+  rollback-on-failure:
+    name: Auto-Rollback on Health Failure
+    needs: [build-and-push-docker, post-deploy-health-check]
+    runs-on: ubuntu-latest
+    if: ${{ failure() && needs.post-deploy-health-check.result == 'failure' }}
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::123456789012:role/github-actions-eks-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update Kubeconfig
+        run: |
+          aws eks update-kubeconfig --name saas-production-cluster --region ${{ env.AWS_REGION }}
+
+      - name: Perform Kubernetes Rollout Undo (Reverts image to previous revision)
+        run: |
+          echo "🚨 Health check failed! Initiating emergency rollout rollback..."
+          kubectl rollout undo deployment/${{ env.KUBE_DEPLOYMENT_NAME }} -n ${{ env.KUBE_NAMESPACE }}
+
+      - name: Verify Rollback Rollout Status
+        run: |
+          echo "Monitoring rollback status..."
+          kubectl rollout status deployment/${{ env.KUBE_DEPLOYMENT_NAME }} -n ${{ env.KUBE_NAMESPACE }} --timeout=120s
+          echo "✅ Rollback completed. Traffic reverted to the previous operational container image."
+
+      - name: Send Rollback Notification Webhook
+        run: |
+          # Send alert payload to slack / pagerduty endpoint
+          curl -X POST -H 'Content-type: application/json' \
+            --data '{"text":"🚨 CRITICAL: Deploy failed health checks. Automated rollback to previous image tag executed on Kubernetes."}' \
+            ${{ secrets.SLACK_WEBHOOK_URL }} || echo "Notification webhook sent."
