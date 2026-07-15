@@ -1,0 +1,9 @@
+services:
+  web:
+    image: nginx:latest
+    container_name: sample-nginx
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:80"
+    volumes:
+      - ./index.html:/usr/share/nginx/html/index.html:ro
