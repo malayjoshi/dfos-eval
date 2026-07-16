@@ -7,7 +7,7 @@ metrics = PrometheusMetrics(app)
 @app.route("/")
 def home():
     return """
-    <h1>CI/CD Pipeline Successful!</h1>
+    <h1>CI/CD Pipeline Successful (Yay)!</h1>
     <p>Application deployed on GCP VM using GitHub Actions.</p>
     """
 
