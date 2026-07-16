@@ -5,7 +5,7 @@ This repository contains my submission for the **DevOps Head – Practical Asses
 📁 **Repository:** [malayjoshi/malayjoshi.github.io](https://github.com/malayjoshi/malayjoshi.github.io)
 🎥 **Walkthrough Video (Google Drive):** [Link](https://drive.google.com/file/d/18zfLLFckFKoGxUvsY9JVyr6nrX9Hkz2x/view?usp=sharing)
 
-> Note: this repo also hosts my personal portfolio site (`index.html`, `app.js`, `style.css`, served via GitHub Pages). The assessment deliverables live in `task-1-git/`, `task-2/`, `flask-app/`, and `.github/workflows/` below.
+> Note: this repo also hosts interactive architectural site (`index.html`, `app.js`, `style.css`, served via GitHub Pages). The assessment deliverables are also in `task-1-git/`, `task-2/`, `flask-app/`, and `.github/workflows/` below.
 
 ---
 
